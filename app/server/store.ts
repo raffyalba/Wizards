@@ -1,0 +1,172 @@
+import { randomUUID } from "node:crypto";
+
+export interface EventInput {
+  name: string;
+  gameType: string;
+  startDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  capacity: number;
+}
+
+export interface EventRecord extends EventInput {
+  id: string;
+  currentCapacity: number;
+}
+
+export interface EventRegistration {
+  id: string;
+  eventId: string;
+  playerName: string;
+  registeredAt: string;
+}
+
+interface StoredEvent extends EventInput {
+  id: string;
+}
+
+export type RegistrationResult =
+  | { ok: true; registration: EventRegistration; event: EventRecord }
+  | {
+      ok: false;
+      status: 404 | 409;
+      code: "NOT_FOUND" | "EVENT_FULL" | "DUPLICATE";
+      error: string;
+    };
+
+export class EventStore {
+  private readonly events = new Map<string, StoredEvent>();
+  private readonly registrations = new Map<string, EventRegistration[]>();
+
+  createEvent(input: EventInput): EventRecord {
+    const event: StoredEvent = { ...input, id: randomUUID() };
+    this.events.set(event.id, event);
+    this.registrations.set(event.id, []);
+    return this.toEventRecord(event);
+  }
+
+  listEvents(): EventRecord[] {
+    return [...this.events.values()]
+      .map((event) => this.toEventRecord(event))
+      .sort((left, right) =>
+        `${left.startDate}T${left.startTime}`.localeCompare(
+          `${right.startDate}T${right.startTime}`,
+        ),
+      );
+  }
+
+  getEvent(id: string): EventRecord | undefined {
+    const event = this.events.get(id);
+    return event ? this.toEventRecord(event) : undefined;
+  }
+
+  register(eventId: string, playerName: string): RegistrationResult {
+    const event = this.events.get(eventId);
+    if (!event) {
+      return {
+        ok: false,
+        status: 404,
+        code: "NOT_FOUND",
+        error: "This event could not be found.",
+      };
+    }
+
+    const registrations = this.registrations.get(eventId) ?? [];
+    const duplicate = registrations.some(
+      (registration) =>
+        registration.playerName.toLocaleLowerCase() ===
+        playerName.toLocaleLowerCase(),
+    );
+    if (duplicate) {
+      return {
+        ok: false,
+        status: 409,
+        code: "DUPLICATE",
+        error: "This name is already registered for the event.",
+      };
+    }
+
+    if (registrations.length >= event.capacity) {
+      return {
+        ok: false,
+        status: 409,
+        code: "EVENT_FULL",
+        error: "This event is full. No more registrations can be accepted.",
+      };
+    }
+
+    const registration: EventRegistration = {
+      id: randomUUID(),
+      eventId,
+      playerName,
+      registeredAt: new Date().toISOString(),
+    };
+    registrations.push(registration);
+    this.registrations.set(eventId, registrations);
+
+    return {
+      ok: true,
+      registration,
+      event: this.toEventRecord(event),
+    };
+  }
+
+  private toEventRecord(event: StoredEvent): EventRecord {
+    return {
+      ...event,
+      currentCapacity: this.registrations.get(event.id)?.length ?? 0,
+    };
+  }
+}
+
+function dateOffset(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function seedDemoEvents(store: EventStore): void {
+  const seedEvents: Array<EventInput & { names: string[] }> = [
+    {
+      name: "Commander at the Table",
+      gameType: "Magic: The Gathering",
+      startDate: dateOffset(2),
+      startTime: "18:00",
+      endTime: "21:00",
+      location: "The Wizards Table",
+      capacity: 24,
+      names: ["Alex Morgan", "Sam Rivera", "Jordan Lee", "Taylor Brooks"],
+    },
+    {
+      name: "League Night",
+      gameType: "Pokémon TCG",
+      startDate: dateOffset(5),
+      startTime: "17:30",
+      endTime: "19:30",
+      location: "The Wizards Table",
+      capacity: 20,
+      names: ["Riley Chen", "Jamie Patel", "Casey Bell"],
+    },
+    {
+      name: "Open Board Game Evening",
+      gameType: "Board Game",
+      startDate: dateOffset(9),
+      startTime: "18:30",
+      endTime: "21:30",
+      location: "The Wizards Table",
+      capacity: 8,
+      names: ["Morgan Ellis", "Avery Kim"],
+    },
+  ];
+
+  for (const { names, ...input } of seedEvents) {
+    const event = store.createEvent(input);
+    for (const name of names) {
+      store.register(event.id, name);
+    }
+  }
+}
