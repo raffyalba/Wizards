@@ -1,4 +1,10 @@
-import type { EventInput, EventRecord, RegistrationResponse } from "./types";
+import type {
+  EventInput,
+  EventPlayer,
+  EventRecord,
+  RegistrationResponse,
+} from "./types";
+import type { GameTypeTemplate } from "../shared/gameTypes";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -13,6 +19,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function listEvents(): Promise<EventRecord[]> {
   return request<EventRecord[]>("/api/events");
+}
+
+export function listEventPlayers(eventId: string): Promise<EventPlayer[]> {
+  return request<EventPlayer[]>(`/api/events/${eventId}/registrations`);
+}
+
+export function listGameTypes(): Promise<GameTypeTemplate[]> {
+  return request<GameTypeTemplate[]>("/api/game-types");
 }
 
 export function getEvent(id: string): Promise<EventRecord> {

@@ -57,7 +57,9 @@ function EventsPage() {
                   </small>
                 </div>
                 <div className="event-list-main">
-                  <span className="game-kicker">{event.gameType}</span>
+                  <span className="game-kicker">
+                    {event.gameType.name} / {event.eventFormat}
+                  </span>
                   <h2>
                     <Link to={`/events/${event.id}`}>{event.name}</Link>
                   </h2>

@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { getGameType } from "../shared/gameTypes.js";
+import type { GameTypeTemplate } from "../shared/gameTypes.js";
 
 export interface EventInput {
   name: string;
-  gameType: string;
+  gameTypeId: string;
+  eventFormat: string;
   startDate: string;
   startTime: string;
   endTime: string;
@@ -10,16 +13,25 @@ export interface EventInput {
   capacity: number;
 }
 
-export interface EventRecord extends EventInput {
+export interface EventRecord extends Omit<EventInput, "gameTypeId"> {
   id: string;
+  gameTypeId: string;
+  gameType: GameTypeTemplate;
   currentCapacity: number;
 }
 
 export interface EventRegistration {
   id: string;
   eventId: string;
+  eventName: string;
   playerName: string;
   registeredAt: string;
+}
+
+export interface EventPlayer {
+  eventId: string;
+  eventName: string;
+  playerName: string;
 }
 
 interface StoredEvent extends EventInput {
@@ -40,6 +52,26 @@ export class EventStore {
   private readonly registrations = new Map<string, EventRegistration[]>();
 
   createEvent(input: EventInput): EventRecord {
+    const gameType = getGameType(input.gameTypeId);
+    if (!gameType) throw new Error("Choose a valid game type.");
+    if (!gameType.eventFormats.includes(input.eventFormat)) {
+      throw new Error("Choose a valid event format for this game type.");
+    }
+    const minimumCapacity = Math.max(
+      gameType.minimumCapacity,
+      gameType.minimumPlayersToStart,
+    );
+    const maximumCapacity = Math.min(gameType.maximumCapacity, 30);
+    if (
+      !Number.isInteger(input.capacity) ||
+      input.capacity < minimumCapacity ||
+      input.capacity > maximumCapacity
+    ) {
+      throw new Error(
+        `Capacity for ${gameType.name} must be between ${minimumCapacity} and ${maximumCapacity}.`,
+      );
+    }
+
     const event: StoredEvent = { ...input, id: randomUUID() };
     this.events.set(event.id, event);
     this.registrations.set(event.id, []);
@@ -59,6 +91,15 @@ export class EventStore {
   getEvent(id: string): EventRecord | undefined {
     const event = this.events.get(id);
     return event ? this.toEventRecord(event) : undefined;
+  }
+
+  listEventPlayers(eventId: string): EventPlayer[] {
+    const registrations = this.registrations.get(eventId) ?? [];
+    return registrations.map(({ eventId, eventName, playerName }) => ({
+      eventId,
+      eventName,
+      playerName,
+    }));
   }
 
   register(eventId: string, playerName: string): RegistrationResult {
@@ -99,6 +140,7 @@ export class EventStore {
     const registration: EventRegistration = {
       id: randomUUID(),
       eventId,
+      eventName: event.name,
       playerName,
       registeredAt: new Date().toISOString(),
     };
@@ -113,8 +155,11 @@ export class EventStore {
   }
 
   private toEventRecord(event: StoredEvent): EventRecord {
+    const gameType = getGameType(event.gameTypeId);
+    if (!gameType) throw new Error("Event refers to an unknown game type.");
     return {
       ...event,
+      gameType,
       currentCapacity: this.registrations.get(event.id)?.length ?? 0,
     };
   }
@@ -133,7 +178,8 @@ export function seedDemoEvents(store: EventStore): void {
   const seedEvents: Array<EventInput & { names: string[] }> = [
     {
       name: "Commander at the Table",
-      gameType: "Magic: The Gathering",
+      gameTypeId: "magic-the-gathering",
+      eventFormat: "Commander",
       startDate: dateOffset(2),
       startTime: "18:00",
       endTime: "21:00",
@@ -143,7 +189,8 @@ export function seedDemoEvents(store: EventStore): void {
     },
     {
       name: "League Night",
-      gameType: "Pokémon TCG",
+      gameTypeId: "pokemon-tcg",
+      eventFormat: "Standard",
       startDate: dateOffset(5),
       startTime: "17:30",
       endTime: "19:30",
@@ -153,7 +200,8 @@ export function seedDemoEvents(store: EventStore): void {
     },
     {
       name: "Open Board Game Evening",
-      gameType: "Board Game",
+      gameTypeId: "board-game",
+      eventFormat: "Open Play",
       startDate: dateOffset(9),
       startTime: "18:30",
       endTime: "21:30",

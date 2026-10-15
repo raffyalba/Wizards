@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, CalendarDays, MapPin, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { createEvent } from "../api";
+import { createEvent, listGameTypes } from "../api";
 import { useEvents } from "../EventsState";
+import type { GameTypeTemplate } from "../../shared/gameTypes";
 import type { EventInput } from "../types";
 
 function initialDate(): string {
@@ -20,6 +21,50 @@ function CreateEventPage() {
   const { refresh } = useEvents();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [gameTypes, setGameTypes] = useState<GameTypeTemplate[]>([]);
+  const [gameTypeId, setGameTypeId] = useState("");
+  const [eventFormat, setEventFormat] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const selectedGameType = gameTypes.find(
+    (gameType) => gameType.id === gameTypeId,
+  );
+  const minimumSeatCount = selectedGameType
+    ? Math.max(
+        selectedGameType.minimumCapacity,
+        selectedGameType.minimumPlayersToStart,
+      )
+    : 1;
+  const maximumSeatCount = Math.min(
+    selectedGameType?.maximumCapacity ?? 30,
+    30,
+  );
+
+  useEffect(() => {
+    let active = true;
+    listGameTypes()
+      .then((types) => {
+        if (!active) return;
+        setGameTypes(types);
+        const firstType = types[0];
+        if (firstType) {
+          setGameTypeId(firstType.id);
+          setEventFormat(firstType.eventFormats[0] ?? "");
+          setCapacity(String(firstType.defaultCapacity));
+        }
+      })
+      .catch((caught: unknown) => {
+        if (active) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Could not load game types.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,7 +73,8 @@ function CreateEventPage() {
     const form = new FormData(event.currentTarget);
     const input: EventInput = {
       name: String(form.get("name") ?? "").trim(),
-      gameType: String(form.get("gameType") ?? ""),
+      gameTypeId: String(form.get("gameTypeId") ?? ""),
+      eventFormat: String(form.get("eventFormat") ?? ""),
       startDate: String(form.get("startDate") ?? ""),
       startTime: String(form.get("startTime") ?? ""),
       endTime: String(form.get("endTime") ?? ""),
@@ -79,14 +125,53 @@ function CreateEventPage() {
         </label>
         <label className="form-field">
           <span>Game type</span>
-          <select name="gameType" defaultValue="Magic: The Gathering" required>
-            <option>Magic: The Gathering</option>
-            <option>Pokémon TCG</option>
-            <option>Disney Lorcana</option>
-            <option>Board Game</option>
-            <option>Other tabletop game</option>
+          <select
+            name="gameTypeId"
+            value={gameTypeId}
+            onChange={(changeEvent) => {
+              const nextType = gameTypes.find(
+                (gameType) => gameType.id === changeEvent.target.value,
+              );
+              setGameTypeId(changeEvent.target.value);
+              setEventFormat(nextType?.eventFormats[0] ?? "");
+              setCapacity(String(nextType?.defaultCapacity ?? ""));
+            }}
+            required
+          >
+            {gameTypes.map((gameType) => (
+              <option key={gameType.id} value={gameType.id}>
+                {gameType.name}
+              </option>
+            ))}
           </select>
         </label>
+        <label className="form-field">
+          <span>Event format</span>
+          <select
+            name="eventFormat"
+            value={eventFormat}
+            onChange={(changeEvent) => setEventFormat(changeEvent.target.value)}
+            required
+            disabled={!selectedGameType}
+          >
+            {selectedGameType?.eventFormats.map((format) => (
+              <option key={format} value={format}>
+                {format}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedGameType && (
+          <div className="template-summary" aria-live="polite">
+            <span>{selectedGameType.format}</span>
+            <span>
+              Capacity {minimumSeatCount} to {maximumSeatCount}
+            </span>
+            <span>
+              {selectedGameType.minimumPlayersToStart} players to start
+            </span>
+          </div>
+        )}
 
         <div className="form-section-heading form-section-spaced">
           <span className="section-number">02</span>
@@ -133,19 +218,25 @@ function CreateEventPage() {
           <span className="section-number">03</span>
           <div>
             <h2>Player capacity</h2>
-            <p>Capacity is enforced when players register.</p>
+            <p>Capacity and minimum players follow the selected game type.</p>
           </div>
         </div>
         <label className="form-field capacity-field">
           <span>
-            <Users size={14} /> Maximum players <small>Up to 30</small>
+            <Users size={14} /> Maximum players
+            {selectedGameType && (
+              <small>
+                {minimumSeatCount} to {maximumSeatCount}
+              </small>
+            )}
           </span>
           <input
             name="capacity"
             type="number"
-            min={1}
-            max={30}
-            defaultValue={16}
+            min={minimumSeatCount}
+            max={maximumSeatCount}
+            value={capacity}
+            onChange={(changeEvent) => setCapacity(changeEvent.target.value)}
             required
           />
         </label>
@@ -162,7 +253,7 @@ function CreateEventPage() {
           <button
             className="button button-primary"
             type="submit"
-            disabled={saving}
+            disabled={saving || !selectedGameType}
           >
             {saving ? "Creating..." : "Create event"}{" "}
             <span aria-hidden="true">&rarr;</span>

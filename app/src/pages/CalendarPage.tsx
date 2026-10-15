@@ -238,7 +238,9 @@ function CalendarPage() {
                   key={event.id}
                   to={`/events/${event.id}`}
                 >
-                  <span className="game-kicker">{event.gameType}</span>
+                  <span className="game-kicker">
+                    {event.gameType.name} / {event.eventFormat}
+                  </span>
                   <strong>{event.name}</strong>
                   <span className="agenda-meta">
                     <Clock3 size={14} /> {event.startTime} to {event.endTime}

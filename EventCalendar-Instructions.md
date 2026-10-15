@@ -5,16 +5,23 @@ We run organized play for trading card games. A store organizer needs a small we
 ## Event Calendar Requirements
 
 1. **Data Structure**
-   - Event
-     - Name
-     - Game Type - Card Game, Board Game, etc
-     - Start Date
-     - Start Time
-     - Capacity - maximum of 30 players
-     - Current Capacity
-   - EventRegistrations
-     - Player Name
-     - Event Name
+
+- Game Type
+  - Name
+  - Format (Card Game, Board Game, etc)
+  - Minimum Capacity
+  - Maximum Capacity
+  - Minimum Players to start
+- Event
+  - Name
+  - Game Type - Follows the Game Type data structure
+  - Start Date
+  - Start Time
+  - Capacity - maximum of 30 players
+  - Current Capacity
+- EventRegistrations
+  - Player Name
+  - Event Name
 
 2. **Pages**
    - Event Creation page - where an organizer can create and schedule events based on Event data structure
@@ -22,3 +29,4 @@ We run organized play for trading card games. A store organizer needs a small we
    - Events page
      - Each event gets a registration link, and the event page displays a QR code encoding that link. Scanning it takes a player to a simple registration form (name is enough). Registration must be **capacity-enforced**: once the event is full, further registrations are rejected with a clear message — enforce this on the server, not just in the UI.
      - An event page must offer a downloadable calendar invite (`.ics` file) for that event, with correct title, start/end time, and location, importable into Google Calendar or Outlook.
+     - In the Events Details page, there should be a toggle button that shows/hides the player names

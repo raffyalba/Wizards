@@ -63,7 +63,8 @@ function RegistrationPage() {
     <main className="page registration-page">
       <div className="registration-card">
         <span className="eyebrow">
-          PLAYER REGISTRATION / {event.gameType.toUpperCase()}
+          PLAYER REGISTRATION / {event.gameType.name.toUpperCase()} /{" "}
+          {event.eventFormat.toUpperCase()}
         </span>
         <h1>{event.name}</h1>
         <div className="registration-event-meta">

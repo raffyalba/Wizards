@@ -6,18 +6,29 @@ import {
   Clock3,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   MapPin,
   QrCode,
   Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, useParams } from "react-router-dom";
+import { listEventPlayers } from "../api";
 import { useEvents } from "../EventsState";
+import type { EventPlayer } from "../types";
 
 function EventDetailPage() {
   const { id } = useParams();
   const { events, loading, error } = useEvents();
   const [copied, setCopied] = useState(false);
+  const [showPlayerNames, setShowPlayerNames] = useState(false);
+  const [playerRoster, setPlayerRoster] = useState<{
+    eventId: string;
+    players: EventPlayer[];
+  } | null>(null);
+  const [playerNamesLoading, setPlayerNamesLoading] = useState(false);
+  const [playerNamesError, setPlayerNamesError] = useState("");
   const event = events.find((item) => item.id === id);
 
   if (loading)
@@ -49,6 +60,38 @@ function EventDetailPage() {
   );
   const full = event.currentCapacity >= event.capacity;
   const date = new Date(`${event.startDate}T00:00:00`);
+  const currentEventId = event.id;
+  const isRosterVisible =
+    showPlayerNames && playerRoster?.eventId === currentEventId;
+  const eventPlayers =
+    playerRoster?.eventId === currentEventId ? playerRoster.players : [];
+
+  async function togglePlayerNames() {
+    if (isRosterVisible) {
+      setShowPlayerNames(false);
+      return;
+    }
+    if (playerRoster?.eventId === currentEventId) {
+      setShowPlayerNames(true);
+      return;
+    }
+
+    setPlayerNamesLoading(true);
+    setPlayerNamesError("");
+    try {
+      const players = await listEventPlayers(currentEventId);
+      setPlayerRoster({ eventId: currentEventId, players });
+      setShowPlayerNames(true);
+    } catch (caught) {
+      setPlayerNamesError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not load player names.",
+      );
+    } finally {
+      setPlayerNamesLoading(false);
+    }
+  }
 
   async function copyLink() {
     try {
@@ -67,8 +110,11 @@ function EventDetailPage() {
       </Link>
       <section className="detail-hero">
         <div className="detail-copy">
-          <span className="game-kicker">{event.gameType}</span>
+          <span className="game-kicker">{event.gameType.name}</span>
           <h1>{event.name}</h1>
+          <p className="detail-format">
+            {event.gameType.format} / {event.eventFormat}
+          </p>
           <div className="detail-meta-grid">
             <div>
               <CalendarDays size={17} />
@@ -103,6 +149,13 @@ function EventDetailPage() {
                 {event.currentCapacity} registered / {event.capacity} max
               </span>
             </div>
+            <div>
+              <Users size={17} />
+              <span>
+                <small>MINIMUM TO START</small>
+                {event.gameType.minimumPlayersToStart} players
+              </span>
+            </div>
           </div>
           <div
             className="capacity-track"
@@ -123,6 +176,51 @@ function EventDetailPage() {
               {event.currentCapacity} / {event.capacity}
             </span>
           </div>
+          <section
+            className="detail-player-roster"
+            aria-label="Registered players"
+          >
+            <button
+              className="button button-quiet"
+              type="button"
+              onClick={togglePlayerNames}
+              disabled={playerNamesLoading}
+              aria-expanded={isRosterVisible}
+              aria-controls={
+                isRosterVisible ? `registered-players-${event.id}` : undefined
+              }
+            >
+              {isRosterVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+              {playerNamesLoading
+                ? "Loading players..."
+                : isRosterVisible
+                  ? "Hide player names"
+                  : "Show player names"}
+            </button>
+            {playerNamesError && (
+              <p className="notice notice-error" role="alert">
+                {playerNamesError}
+              </p>
+            )}
+            {isRosterVisible && (
+              <div
+                className="detail-player-list"
+                id={`registered-players-${event.id}`}
+              >
+                {eventPlayers.length === 0 ? (
+                  <span className="no-players">No registrations yet</span>
+                ) : (
+                  <ul>
+                    {eventPlayers.map((player) => (
+                      <li key={`${player.eventId}-${player.playerName}`}>
+                        {player.playerName}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
           <div className="detail-actions">
             <a
               className="button button-outline"

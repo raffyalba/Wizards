@@ -1,7 +1,11 @@
+import type { GameTypeTemplate } from "../shared/gameTypes";
+
 export interface EventRecord {
   id: string;
   name: string;
-  gameType: string;
+  gameTypeId: string;
+  gameType: GameTypeTemplate;
+  eventFormat: string;
   startDate: string;
   startTime: string;
   endTime: string;
@@ -12,7 +16,8 @@ export interface EventRecord {
 
 export interface EventInput {
   name: string;
-  gameType: string;
+  gameTypeId: string;
+  eventFormat: string;
   startDate: string;
   startTime: string;
   endTime: string;
@@ -20,10 +25,17 @@ export interface EventInput {
   capacity: number;
 }
 
+export interface EventPlayer {
+  eventId: string;
+  eventName: string;
+  playerName: string;
+}
+
 export interface RegistrationResponse {
   registration: {
     id: string;
     eventId: string;
+    eventName: string;
     playerName: string;
     registeredAt: string;
   };
